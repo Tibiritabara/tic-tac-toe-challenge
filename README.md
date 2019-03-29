@@ -1,60 +1,189 @@
-# Anaconda: Tic-Tac-Toe Coding Challenge
-Your mission, should you choose to accept it, is to implement a two-player game of Tic-tac-toe in the web browser.
+# Tic Tac Toe
 
-## Rules
+## Tech behind
+This project was built using mongodb for the data storage and tornado web is the main framework. In order 
+to take advantage of the async nature of the framework, umongo is being used on top of motor for mongo.
 
-HONOR RULES: You must do this challenge on your own, without assistance or review from others, and without copying from the Internet. You will be asked to affirm that you developed your work independently.
+## REST API DOCUMENTATION
 
-TIME LIMIT: You have 3 days from the date you receive a link to this site. You may submit your work earlier.
+We support three elements that are going to be stored: Users, Games, and GameMoves.
 
-TASK: Your task it implement a simple but comprehensive REST API for a [tic-tac-toe game](https://en.wikipedia.org/wiki/Tic-tac-toe)
+### Users
+A user is a player of our tool. This is how a user looks in the database:
+```json
+{
+    "_id" : ObjectId("5c9d5702e3872b02c94ecdb0"),
+    "email" : "test@test.de",
+    "username" : "usertest",
+    "created_at" : ISODate("2019-03-29T00:21:29.287Z"),
+    "victories" : 0
+}
+```
 
-## Requirements
+In order to manipulate users we have the next set of endpoints:
 
-The basic requirements for the game are:
+#### POST /api/users
+```json
 
-store a game board data structure that contains the game information
-allow two players to enter their names, and automatically assign one of them the circle and the other the 'x'allow each to play a turn, one at a time, during which the player selects a square of the board and it is filled in with their symbol
-indicate when one of the players has won, or the game is a draw
-In addition to implementing basic gameplay, the user must be able to save their game to the server.
-
-Since this is a coding challenge, the success of your mission depends on building a good rest API implementation. 
-
-Make sure to provide instruction about how to setup, run and consume your REST API.
-
-## Technologies
-
-We prefer Python and the tornado framework, but they are not required. You can use whatever technology you prefer.
-
-Game data structure
-A game consists of:
-
-two players, represented by their names as strings
-a board data structure (we are leaving you the choice of what data structure is more appropriate for the task). Keep in mind that this data structure needs to trak the status of each board element. Each element is null if the square is blank, or either 0 or 1 to indicate which player controls the square. 
-
-Server API
-The server should complies with the JSON API specification.
-
-- `GET /api/games`: Return a list of the Games known to the server, as JSON.
+{
+	"username": "test",
+	"email": "test@test.de"
+}
+```
+There are two main attributes, email and username, which are unique.
 
 
-- `POST /api/games`: Create a new `Game`, assigning it an ID and returning the newly created `Game`.
+#### PUT /api/users/{user_id}
+```json
+{
+	"email": "test@test.de"
+}
+```
+The user_id is the mongo_id of the user when stored. Any of field can be modified by just sending 
+the updated fields in the json body of the request
 
-- `GET /api/games/<id>`: Retrieve a `Game` by its ID, returning a `404` status
-  code if no game with that ID exists.
+#### GET /api/users
+Retrieves the full list of users stored.
 
-- `POST /api/games/<id>`: Update the `Game` with the given ID, replacing its data with the newly `POST`ed data.
+#### GET /api/users/{user_id}
+The user_id as explained before, is the object_id of the database entry
 
-## Optional
 
-If you have extra time and want to take on an additional challenge, you may choose to implement:
+#### DELETE /api/users/{user_id}
+It is a user hard delete. Soft delete will be for a later improvement.
 
- - viewing & restoring saved games
- - an "AI" player option, where someone can play against the computer
+### Games
+A game is an object represented by a board, a set of players and a state. Each move on this board
+will be stored in the GameMove collection, being able then to trace the user behavior on the game.
+A game has a status, which might be: `created`, `in_progress`, `tie` or `finished`. Each of these states
+will be updated accordingly to the game progress. 
 
-However, please be aware that we'd prefer a more polished implementation to more features!
+A game entry will look like this in the database:
+```json
+{
+    "_id" : ObjectId("5c9d59d3e3872b091268fa1b"),
+    "players" : [ 
+        ObjectId("5c9d59cfe3872b091268fa19"), 
+        ObjectId("5c9d59d1e3872b091268fa1a")
+    ],
+    "status" : "created",
+    "board" : [ 
+        [ 
+            "", 
+            "", 
+            ""
+        ], 
+        [ 
+            "", 
+            "", 
+            ""
+        ], 
+        [ 
+            "", 
+            "", 
+            ""
+        ]
+    ],
+    "multiplayer" : true
+}
+```
+The board is a 3 by 3 grid, that is represented by a matrix on the board field of the database entry
+```
+[["", "", ""],
+ ["", "", ""],
+ ["", "", ""]]
+```
+This should be the visual representation of the board. We have two available markers `X` or `O` and each cell 
+of the grid will be replaced with those values when the game starts moving forward.
 
-## Submission
+#### POST /api/games
+```json
+{
+ "players": [
+    "5c9d51d5e3872b71421ae42c",
+    "5c9d50f5e3872b6fb001ae77"
+  ]
+}
+```
+This will create a new game board. The game will be multiplayer or single player depending on the amount of players sent
+on the json body. A player is a mongo_id.
 
-When you are ready, please submit your challenge as a pull request
-against this repository.
+### GET /api/games
+Retrieve the full list of games stored
+
+
+### GET /api/games/{game_id}
+game_id is the mongo_od of the database entry. When calling this endpoint it will return the current state
+of the requested game.
+
+### GameMoves
+A game move is an object that describes the next requested move by the user. This move will be stored on the database
+to give transparency and a visible trace on how was the game progress, and this object will be processed on our engine
+in order to move forward on the game. When is a single player game, whenever a user creates a move, the AI will move 
+immediately.
+
+This is how a GameMove object look on the database
+```json
+{
+    "_id" : ObjectId("5c9d5c30e3872b0da34d3e7d"),
+    "symbol" : "X",
+    "player" : ObjectId("5c9d5c2ae3872b0da34d3e7a"),
+    "cell" : {
+        "row" : 0,
+        "column" : 1
+    },
+    "created_at" : ISODate("2019-03-29T00:43:35.053Z"),
+    "game" : ObjectId("5c9d5c2de3872b0da34d3e7c")
+}
+```
+In order to trigger and manage moves we have the next endpoints:
+
+#### POST /api/games/{game_id}
+When posting to this url, while using the game_id which is the mongo generated id, it will then trigger a game
+move based on the next json body:
+```json
+{
+	"player": ObjectId("5c9d5c2ae3872b0da34d3e7a"),
+	"symbol": "X",
+	"cell": {
+		"row": 0,
+		"column": 1
+	}
+}
+```
+Where row and column are the coordinates of the cell on the grid where the marker is going to be placed. Almost everything
+is validated, so the game can flow without issues. The symbol is the selected marker by the user. The same user cannot play
+twice or the next user cannot use the same marker as the user before him.
+
+
+#### GET /api/games/{game_id}/moves
+This endpoint return the full list of moves for the given game_id.
+
+## How to build
+The project is using docker and docker-compose in order to be able to work on it locally.
+
+It is enough with doing 
+```
+docker-compose up -d --build
+```
+And you will be able to access the application through `http://localhost:8000`
+
+If you want to run the project locally with all its dependencies please follow the next steps:
+
+* Install Pipenv if you don't have it already ([download here](https://pipenv.readthedocs.io/en/latest/)): $`pip install --user pipenv`
+* Install mongodb locally or run it in a docker container.
+* then run `pipenv install` on the project folder. This will create a virtual environment with all 
+of the dependencies inside.
+* Execute `cp .env.dist .env` to ensure the environment variables are loaded.
+* To run the server just execute `pipenv run python main.py`. This will run the project on the port 8000.
+
+Now in order to run the tests please run:
+* Run `PIPENV_DOTENV_LOCATION=.env.test pipenv run python unittest app/tests/tests.py` in order to override
+the .env file and use the testing configuration
+
+## Final words
+The code is completely documented and the tests have a 90+% coverage. There are lots of improvements that 
+can be made, starting with logging.
+
+Im thankful for the opportunity and I hope this project gives you a better understanding of my 
+skills and how do I like to design software.
