@@ -173,6 +173,17 @@ class GameMoveHandler(ErrorHandler):
         self.set_header("Content-Type", 'application/json')
         self.write(game.dump())
 
+    @validate_mongo_id
+    async def get(self, pk: str):
+        """
+        Retrieve a single object from the database
+        :param str pk:
+        :return:
+        """
+        obj = await Game.find_by_id(pk)
+        self.set_header("Content-Type", 'application/json')
+        self.write(obj.dump())
+
 
 class GameMovesRetriever(ErrorHandler):
     """
@@ -193,3 +204,4 @@ class GameMovesRetriever(ErrorHandler):
             data.append(obj.dump())
         self.set_header("Content-Type", 'application/json')
         self.write({"data": data})
+
