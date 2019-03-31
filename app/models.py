@@ -126,6 +126,11 @@ class Game(BaseDocument):
 
     winner = fields.ReferenceField("User")
 
+    size = fields.IntegerField(
+        validate=[validate.Range(3, 10)],
+        default=3,
+    )
+
     def pre_insert(self):
         """
         Fill the board and do multiplayer validations
@@ -143,7 +148,7 @@ class Game(BaseDocument):
         else:
             self.multiplayer = False
 
-        self.board = [['', '', ''], ['', '', ''], ['', '', '']]
+        self.board = [["" for i in range(self.size)] for y in range(self.size)]
         pass
 
     class Meta:

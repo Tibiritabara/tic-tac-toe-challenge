@@ -8,11 +8,10 @@ from umongo import fields
 
 from app.decorators import validate_mongo_id, validate_json_body
 from app.models import Game, GameMove
-from app.engine import GameEngine
+from app.engine import GameEngine, GameBot
 
 
 engine = GameEngine()
-
 
 class MainHandler(RequestHandler):
     """
@@ -154,7 +153,12 @@ class GameMoveHandler(ErrorHandler):
     @validate_json_body
     async def post(self, pk: str):
         """
-        Edit a given database object
+        Trigger a game move by the user. If the game is multiplayer
+        will execute a bot move immediatly after. This can be vastly
+        improved by the use of the strategy pattern to distinguish
+        single player and multiplayer games. Right now in order to not
+        increase complexity, and as the game rules are no different on both
+        modes we are going by a simple decision.
         :param str pk:
         :return:
         """
@@ -168,7 +172,7 @@ class GameMoveHandler(ErrorHandler):
         move = GameMove(**data)
         await engine.execute_move(game, move)
         if not game.multiplayer and game.status == Game.STATUS_IN_PROGRESS:
-            aimove = await engine.ai_move(game, move)
+            aimove = await GameBot().move(game, move)
             await engine.execute_move(game, aimove)
         self.set_header("Content-Type", 'application/json')
         self.write(game.dump())
@@ -204,4 +208,3 @@ class GameMovesRetriever(ErrorHandler):
             data.append(obj.dump())
         self.set_header("Content-Type", 'application/json')
         self.write({"data": data})
-

@@ -4,7 +4,7 @@
 This project was built using mongodb for the data storage and tornado web is the main framework. In order 
 to take advantage of the async nature of the framework, umongo is being used on top of motor for mongo.
 
-## REST API DOCUMENTATION
+## REST API Documentation
 
 We support three elements that are going to be stored: Users, Games, and GameMoves.
 
@@ -43,7 +43,7 @@ The user_id is the mongo_id of the user when stored. Any of field can be modifie
 the updated fields in the json body of the request
 
 #### GET /api/users
-Retrieves the full list of users stored.
+Retrieves the full list of stored users.
 
 #### GET /api/users/{user_id}
 The user_id as explained before, is the object_id of the database entry
@@ -108,12 +108,12 @@ of the grid will be replaced with those values when the game starts moving forwa
 This will create a new game board. The game will be multiplayer or single player depending on the amount of players sent
 on the json body. A player is a mongo_id.
 
-### GET /api/games
+#### GET /api/games
 Retrieve the full list of games stored
 
 
-### GET /api/games/{game_id}
-game_id is the mongo_od of the database entry. When calling this endpoint it will return the current state
+#### GET /api/games/{game_id}
+game_id is the mongo_id of the database entry. When calling this endpoint it will return the current state
 of the requested game.
 
 ### GameMoves
@@ -122,7 +122,7 @@ to give transparency and a visible trace on how was the game progress, and this 
 in order to move forward on the game. When is a single player game, whenever a user creates a move, the AI will move 
 immediately.
 
-This is how a GameMove object look on the database
+This is how a GameMove object looks on the database
 ```json
 {
     "_id" : ObjectId("5c9d5c30e3872b0da34d3e7d"),
@@ -178,12 +178,28 @@ of the dependencies inside.
 * To run the server just execute `pipenv run python main.py`. This will run the project on the port 8000.
 
 Now in order to run the tests please run:
-* Run `PIPENV_DOTENV_LOCATION=.env.test pipenv run python unittest app/tests/tests.py` in order to override
+* Run `PIPENV_DOTENV_LOCATION=.env.test pipenv run python -m unittest app/tests/tests.py` in order to override
 the .env file and use the testing configuration
 
+## How to extend
+The GameBot class uses an attribute called strategy. This strategy is the way the bot calculates its next move.
+By default it uses the RandomStrategy built-in within the project, which just takes the available cells in the board
+and picks a random one that it will be the bot next move. The goal is to even support implementations of machine learning 
+algorithms (using reinforcement learning) into the calculation of the bot next move. The way to create new strategies is 
+just to create a new class inheriting from app.engine.AbstractBotStrategy and then when instancing the bot, set the strategy
+attribute to the new created strategy. The strategy must accept a board state, and the bot symbol to play by implementing the move method.
+
+## Possible improvements
+Due to time constraints there is a lot of room for improvement. One of the recognized improvements are:
+* The way to ensure that the AI user is executed is on the Application creation. This should be part of the build process,
+not of the application execution process.
+* Better support for bots and association of a given bot with a given strategy.
+* Proper separation between single player and multiplayer games.
+* Support for Swagger and OpenAPI
+* Better logging for debugging.
+
 ## Final words
-The code is completely documented and the tests have a 90+% coverage. There are lots of improvements that 
-can be made, starting with logging.
+The code is completely documented and the tests have a 90+% coverage. 
 
 Im thankful for the opportunity and I hope this project gives you a better understanding of my 
 skills and how do I like to design software.

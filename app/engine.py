@@ -3,6 +3,8 @@ The collection of classes and methods to actually play the game
 """
 import asyncio
 import random
+import abc
+from typing import Tuple
 from tornado.web import HTTPError
 from app.models import Game, GameMove, User
 
@@ -42,7 +44,8 @@ class GameEngine:
         :param GameMove move:
         :return bool:
         """
-        if move.cell.get('row') > 2 or  move.cell.get('column') > 2:
+        limit = game.size - 1
+        if move.cell.get('row') > limit or  move.cell.get('column') > limit:
             return False
 
         if game.board[move.cell.get('row')][move.cell.get('column')] != '':
@@ -77,7 +80,7 @@ class GameEngine:
         """
         win = True
         prev = None
-        for i in range(0, 3):
+        for i in range(game.size):
             value = game.board[i][i]
             if value == '' or (prev is not None and value != prev):
                 win = False
@@ -94,8 +97,8 @@ class GameEngine:
         """
         win = True
         prev = None
-        for i in range(0, 3):
-            value = game.board[i][2-i]
+        for i in range(game.size):
+            value = game.board[i][(game.size - 1) - i]
             if value == '' or (prev is not None and value != prev):
                 win = False
                 break
@@ -109,10 +112,10 @@ class GameEngine:
         :return bool:
         """
         win = True
-        for i in range(0, 3):
+        for i in range(0, game.size):
             prev = None
             win = True
-            for j in range(0, 3):
+            for j in range(game.size):
                 value = game.board[i][j]
                 if value == '' or (prev is not None and value != prev):
                     win = False
@@ -129,10 +132,10 @@ class GameEngine:
         :return bool:
         """
         win = True
-        for i in range(0, 3):
+        for i in range(game.size):
             prev = None
             win = True
-            for j in range(0, 3):
+            for j in range(game.size):
                 value = game.board[j][i]
                 if value == '' or (prev is not None and value != prev):
                     win = False
@@ -149,8 +152,8 @@ class GameEngine:
         :return bool:
         """
         tie = True
-        for i in range(0, 3):
-            for j in range(0, 3):
+        for i in range(game.size):
+            for j in range(game.size):
                 value = game.board[j][i]
                 if value == '':
                     tie = False
@@ -187,23 +190,89 @@ class GameEngine:
         await asyncio.gather(*tasks)
         return game
 
-    async def ai_move(self, game: Game, prev_move: GameMove) -> GameMove:
-        """
-        Return a move made by the AI. This can be vastly improved,
-        right now is just a random available cell.
-        """
-        available_cells = []
-        for i in range(0, 3):
-            for j in range(0, 3):
-                if game.board[i][j] == '':
-                    available_cells.append((i, j))
 
-        user = await User.find_one({'username': 'tictactoeai'})
+class AbstractBotStrategy(abc.ABC):
+    """
+    Base definition of a moving strategy. Bot next move strategy
+    must implement this class to allow us to ensure the consistency
+    across different moving algorithms.
+    """
+
+    def __init__(self, symbol: str, size: int, board):
+        """
+        Assigns the base elements necessary for the execution of a
+        strategy or moving algorithm by the bots.
+        :param str symbol: Symbol for the bot on the next move
+        :param int size: Size of the board
+        :param board: current state of the game board
+        """
+        self.symbol = symbol
+        self.size = size
+        self.board = board
+
+    @abc.abstractmethod
+    async def move(self) -> Tuple[int, int]:
+        """
+        Decides which cell to move
+        :return Tuple: cell where the next move will be executed
+        """
+
+
+class RandomStrategy(AbstractBotStrategy):
+    """
+    Algorithm to decide which cell to fill based on a random pick
+    between all the currently available cells.
+    """
+
+    async def move(self) -> Tuple[int, int]:
+        available_cells = []
+        for i in range(self.size):
+            for j in range(self.size):
+                if self.board[i][j] == '':
+                    available_cells.append((i, j))
+        return random.choice(available_cells)
+
+
+class GameBot:
+    """
+    Creates a bot. A bot is composed by a pre-existing user
+    and a move strategy.
+    """
+    def __init__(
+            self,
+            botname: str = 'tictactoeai',
+            strategy=RandomStrategy,
+    ):
+        """
+        Initializes the bot with a given user. Many bots
+        can exist, and in order to improve the interaction
+        with our players we can create bots with different
+        names or with different strategies.
+        :param str botname: user assigned to the bot
+        :param strategy: bot moving algorithm
+        """
+        self.botname = botname
+        self.strategy = strategy
+
+    async def move(self, game: Game, prev_move: GameMove) -> GameMove:
+        """
+        Return a move made by the AI. The move can be calculated based on different
+        strategies. By default it will trigger a RandomStrategy which means, picking a
+        random cell from the empty bucket of cells.
+        :param Game game: game over which the move will bem ade
+        :param GameMove prev_move: user move
+        :return GameMove: bot move
+        """
+        user = await User.find_one({'username': self.botname})
         symbol = list(filter(
             lambda x: x != prev_move.symbol,
             GameMove.SYMBOLS,
         ))[0]
-        cell = random.choice(available_cells)
+        cell = await self.strategy(
+            symbol,
+            game.size,
+            game.board,
+        ).move()
         data = {
             'symbol': symbol,
             'player': user.pk.__str__(),
